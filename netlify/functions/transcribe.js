@@ -1,53 +1,26 @@
-export default async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+exports.handler = async function(event) {
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Content-Type' }, body: '' };
   }
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
 
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
-    return new Response(JSON.stringify({ error: 'API key not configured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  if (!groqKey) return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
 
   try {
-    // Пробрасываем multipart/form-data напрямую в Groq
-    const formData = await req.formData();
-    const lang = formData.get('language') || '';
-
-    const groqForm = new FormData();
-    groqForm.append('file', formData.get('file'));
-    groqForm.append('model', 'whisper-large-v3-turbo');
-    groqForm.append('response_format', 'text');
-    if (lang) groqForm.append('language', lang);
+    const contentType = event.headers['content-type'] || '';
+    const body = event.isBase64Encoded ? Buffer.from(event.body, 'base64') : Buffer.from(event.body);
 
     const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { Authorization: `Bearer ${groqKey}` },
-      body: groqForm
+      headers: { Authorization: `Bearer ${groqKey}`, 'Content-Type': contentType },
+      body: body
     });
 
     const text = await response.text();
-
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: text }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ text }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
+    if (!response.ok) return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: text }) };
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ text }) };
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
-
-export const config = { path: '/api/transcribe' };
