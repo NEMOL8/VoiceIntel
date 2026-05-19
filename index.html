@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VoiceIntel — Groq Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080810;
+    --surface: #10101c;
+    --card: #181828;
+    --border: #252538;
+    --accent: #f97316;
+    --accent2: #818cf8;
+    --text: #e2e2f0;
+    --muted: #64648a;
+    --success: #34d399;
+    --danger: #f87171;
+    --groq: #f97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(37,37,56,0.6) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(37,37,56,0.6) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .glow1 {
+    position: fixed; top: -300px; right: -200px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(249,115,22,0.07) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+  .glow2 {
+    position: fixed; bottom: -300px; left: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(129,140,248,0.07) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .container {
+    position: relative; z-index: 1;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 36px 20px 80px;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 40px;
+  }
+
+  .logo-mark {
+    width: 46px; height: 46px;
+    background: linear-gradient(135deg, var(--accent), #fb923c);
+    border-radius: 13px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+    box-shadow: 0 0 30px rgba(249,115,22,0.3);
+  }
+
+  .logo-text { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+  .logo-text span { color: var(--accent); }
+
+  .groq-badge {
+    margin-left: auto;
+    background: rgba(249,115,22,0.12);
+    border: 1px solid rgba(249,115,22,0.3);
+    color: var(--accent);
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 5px 12px;
+    border-radius: 20px;
+    letter-spacing: 1px;
+    font-weight: 500;
+  }
+
+
+
+  /* KEY SECTION */
+  .key-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+
+  .key-label {
+    font-size: 11px; color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .key-label a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 10px;
+    padding: 2px 8px;
+    border: 1px solid rgba(249,115,22,0.3);
+    border-radius: 10px;
+    margin-left: auto;
+    transition: all 0.2s;
+  }
+  .key-label a:hover { background: rgba(249,115,22,0.1); }
+
+  .key-input {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .key-input:focus { border-color: var(--accent); }
+  .key-input::placeholder { color: var(--muted); }
+
+  /* UPLOAD */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 18px;
+    padding: 44px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(249,115,22,0.04);
+  }
+
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0;
+    opacity: 0; cursor: pointer;
+  }
+
+  .upload-icon { font-size: 44px; display: block; margin-bottom: 14px; }
+  .upload-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+  .upload-sub { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+
+  .file-info {
+    display: none;
+    margin-top: 14px;
+    background: rgba(52,211,153,0.08);
+    border: 1px solid rgba(52,211,153,0.25);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: var(--success);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .large-file-warn {
+    display: none;
+    margin-top: 10px;
+    background: rgba(251,146,60,0.08);
+    border: 1px solid rgba(251,146,60,0.25);
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 12px;
+    color: #fb923c;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* OPTIONS */
+  .options-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .opt-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+
+  .opt-card label {
+    display: block;
+    font-size: 10px; color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+
+  .opt-card select {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 12px;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .opt-card select:focus { border-color: var(--accent); }
+
+  /* RUN BUTTON */
+  .run-btn {
+    width: 100%;
+    padding: 17px;
+    background: linear-gradient(135deg, #f97316, #ea580c);
+    border: none; border-radius: 13px;
+    color: white;
+    font-family: 'Syne', sans-serif;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-bottom: 28px;
+    display: flex; align-items: center; justify-content: center;
+    gap: 10px;
+  }
+
+  .run-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 40px rgba(249,115,22,0.35);
+  }
+
+  .run-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  /* PROGRESS */
+  .progress-box {
+    display: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 24px;
+  }
+
+  .progress-box h4 {
+    font-size: 12px; color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 16px;
+  }
+
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+
+  .step {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 14px;
+  }
+
+  .step-dot {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    flex-shrink: 0;
+    transition: all 0.3s;
+  }
+
+  .step-text { color: var(--muted); font-size: 13px; }
+
+  .step.active .step-dot {
+    background: rgba(249,115,22,0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: spin-pulse 2s infinite;
+  }
+  .step.active .step-text { color: var(--text); }
+
+  .step.done .step-dot {
+    background: rgba(52,211,153,0.12);
+    border-color: var(--success);
+    color: var(--success);
+  }
+  .step.done .step-text { color: var(--success); }
+
+  .step.error .step-dot {
+    background: rgba(248,113,113,0.12);
+    border-color: var(--danger);
+    color: var(--danger);
+  }
+
+  @keyframes spin-pulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(249,115,22,0.4); }
+    50% { box-shadow: 0 0 0 5px rgba(249,115,22,0); }
+  }
+
+  /* ERROR */
+  .error-box {
+    display: none;
+    background: rgba(248,113,113,0.07);
+    border: 1px solid rgba(248,113,113,0.25);
+    border-radius: 12px;
+    padding: 14px 18px;
+    color: #fca5a5;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    margin-bottom: 20px;
+    line-height: 1.6;
+  }
+
+  /* RESULTS */
+  .results { display: none; flex-direction: column; gap: 20px; }
+
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+  }
+
+  .result-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,0.02);
+  }
+
+  .result-title {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 14px; font-weight: 700;
+  }
+
+  .r-icon {
+    width: 30px; height: 30px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px;
+  }
+
+  .r-icon.orange { background: rgba(249,115,22,0.12); }
+  .r-icon.purple { background: rgba(129,140,248,0.12); }
+
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 5px 11px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .result-body {
+    padding: 22px;
+    font-size: 13px;
+    line-height: 1.8;
+    color: #b8b8d0;
+    white-space: pre-wrap;
+    max-height: 420px;
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 300;
+  }
+
+  .result-body.prose {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  .result-body::-webkit-scrollbar { width: 3px; }
+  .result-body::-webkit-scrollbar-track { background: transparent; }
+  .result-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .result-footer {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    padding: 12px 22px;
+    border-top: 1px solid var(--border);
+    background: rgba(255,255,255,0.01);
+  }
+
+  .meta { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--muted); }
+  .meta span { color: var(--text); }
+
+
+  @media (max-width: 600px) {
+    .options-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="glow1"></div>
+<div class="glow2"></div>
+
+<div class="container">
+
+  <header>
+    <div class="logo-mark">🎙</div>
+    <div class="logo-text">Voice<span>Intel</span></div>
+    <div class="groq-badge">⚡ GROQ FREE</div>
+  </header>
+
+
+  <!-- ===== APP ===== -->
+  <div id="tab-app">
+
+
+
+    <div class="upload-zone" id="uploadZone">
+      <input type="file" id="fileInput" accept="audio/*,video/*" />
+      <span class="upload-icon">📁</span>
+      <div class="upload-title">Перетащи аудио или выбери файл</div>
+      <div class="upload-sub">MP3 · MP4 · WAV · M4A · OGG · WEBM · любой размер (нарезается автоматически)</div>
+      <div class="file-info" id="fileInfo">✓ <span id="fileName"></span></div>
+      <div class="large-file-warn" id="largeWarn">⚠ Большой файл — будет нарезан на части по 20 MB и отправлен последовательно</div>
+    </div>
+
+    <div class="options-grid">
+      <div class="opt-card">
+        <label>Язык аудио</label>
+        <select id="langSel">
+          <option value="ru">🇷🇺 Русский</option>
+          <option value="en">🇬🇧 English</option>
+          <option value="">🌐 Авто-определение</option>
+        </select>
+      </div>
+      <div class="opt-card">
+        <label>Формат саммари</label>
+        <select id="fmtSel">
+          <option value="bullets">Тезисы + решения</option>
+          <option value="action">Action items</option>
+          <option value="narrative">Связный пересказ</option>
+          <option value="full">Полный отчёт</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="run-btn" id="runBtn" onclick="run()">
+      ⚡ Транскрибировать и создать саммари
+    </button>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="progress-box" id="progressBox">
+      <h4>Обработка...</h4>
+      <div class="steps">
+        <div class="step" id="s1"><div class="step-dot">1</div><div class="step-text">Декодирование и подготовка аудио...</div></div>
+        <div class="step" id="s2"><div class="step-dot">2</div><div class="step-text">Транскрипция через Groq Whisper</div></div>
+        <div class="step" id="s3"><div class="step-dot">3</div><div class="step-text">Генерация саммари через Llama 3.3</div></div>
+        <div class="step" id="s4"><div class="step-dot">4</div><div class="step-text">Готово!</div></div>
+      </div>
+    </div>
+
+    <div class="results" id="results">
+      <!-- Summary -->
+      <div class="result-card">
+        <div class="result-header">
+          <div class="result-title">
+            <div class="r-icon orange">✨</div> Саммари совещания
+          </div>
+          <button class="copy-btn" onclick="copyEl('summaryBody')">📋 Копировать</button>
+          <button class="copy-btn" onclick="downloadEl('summaryBody', 'summary.txt')">💾 Скачать</button>
+        </div>
+        <div class="result-body prose" id="summaryBody"></div>
+        <div class="result-footer">
+          <div class="meta">Слов: <span id="swc">—</span></div>
+          <div class="meta">Модель: <span>llama-3.3-70b-versatile</span></div>
+        </div>
+      </div>
+
+      <!-- Transcript -->
+      <div class="result-card">
+        <div class="result-header">
+          <div class="result-title">
+            <div class="r-icon purple">📝</div> Полная транскрипция
+          </div>
+          <button class="copy-btn" onclick="copyEl('transcriptBody')">📋 Копировать</button>
+          <button class="copy-btn" onclick="downloadEl('transcriptBody', 'transcript.txt')">💾 Скачать</button>
+        </div>
+        <div class="result-body" id="transcriptBody"></div>
+        <div class="result-footer">
+          <div class="meta">Слов: <span id="twc">—</span></div>
+          <div class="meta">Символов: <span id="tcc">—</span></div>
+          <div class="meta">Модель: <span>whisper-large-v3-turbo</span></div>
+        </div>
+      </div>
+    </div>
+
+
+
+</div><!-- /container -->
+
+<script>
+const CHUNK = 20 * 1024 * 1024; // 20 MB — безопасный лимит для Groq
+let file = null;
+
+
+
+// Drag & drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); pick(e.dataTransfer.files[0]); });
+document.getElementById('fileInput').addEventListener('change', e => pick(e.target.files[0]));
+
+function pick(f) {
+  if (!f) return;
+  file = f;
+  document.getElementById('fileName').textContent = f.name + ' (' + fmt(f.size) + ')';
+  document.getElementById('fileInfo').style.display = 'block';
+  document.getElementById('largeWarn').style.display = f.size > CHUNK ? 'block' : 'none';
+}
+
+function fmt(b) {
+  return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB';
+}
+
+function step(n, st) {
+  const el = document.getElementById('s'+n);
+  el.className = 'step ' + st;
+  const map = { active: '⟳', done: '✓', error: '✗' };
+  el.querySelector('.step-dot').textContent = map[st] || n;
+}
+
+function err(msg) {
+  const el = document.getElementById('errorBox');
+  el.innerHTML = '⚠ ' + msg;
+  el.style.display = 'block';
+}
+
+async function run() {
+  const lang = document.getElementById('langSel').value;
+  const fmt2 = document.getElementById('fmtSel').value;
+
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+
+  if (!file) return err('Выбери аудио файл');
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  document.getElementById('progressBox').style.display = 'block';
+
+  ['s1','s2','s3','s4'].forEach((_,i) => step(i+1, ''));
+
+  try {
+    step(1, 'active');
+    const chunks = await splitFile(file);
+    step(1, 'done');
+
+    step(2, 'active');
+    let transcript = '';
+    for (let i = 0; i < chunks.length; i++) {
+      if (chunks.length > 1) {
+        document.querySelector('#s2 .step-text').textContent = `Транскрипция части ${i+1}/${chunks.length}...`;
+      }
+      transcript += (transcript ? '\n' : '') + await transcribe(chunks[i], lang);
+      // Пауза 4 сек между запросами чтобы не превысить лимит 20 RPM
+      if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 4000));
+    }
+    step(2, 'done');
+
+    step(3, 'active');
+    const summary = await summarize(transcript, null, fmt2);
+    step(3, 'done');
+    step(4, 'done');
+
+    document.getElementById('transcriptBody').textContent = transcript;
+    document.getElementById('twc').textContent = wc(transcript).toLocaleString('ru');
+    document.getElementById('tcc').textContent = transcript.length.toLocaleString('ru');
+
+    document.getElementById('summaryBody').textContent = summary;
+    document.getElementById('swc').textContent = wc(summary).toLocaleString('ru');
+
+    document.getElementById('results').style.display = 'flex';
+    document.getElementById('pdfExportRow').style.display = 'block';
+  } catch(e) {
+    err(e.message || String(e));
+    for (let i = 4; i >= 1; i--) {
+      if (document.getElementById('s'+i).classList.contains('active')) { step(i, 'error'); break; }
+    }
+  }
+  btn.disabled = false;
+}
+
+// Разбивка файла на чанки через Web Audio API (правильные аудио-сегменты)
+async function splitFile(f) {
+  if (f.size <= CHUNK) return [f];
+
+  // Декодируем аудио через Web Audio API
+  const arrayBuf = await f.arrayBuffer();
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  let audioBuf;
+  try {
+    audioBuf = await audioCtx.decodeAudioData(arrayBuf);
+  } catch(e) {
+    // Если декодирование не удалось — fallback на байтовую нарезку
+    console.warn('Web Audio decode failed, falling back to byte chunking:', e);
+    return splitFileBytes(f);
+  }
+
+  const sampleRate = audioBuf.sampleRate;
+  const totalDuration = audioBuf.duration;
+  const channels = audioBuf.numberOfChannels;
+
+  // Целевой размер чанка ~20 MB → примерно сколько секунд аудио
+  // WAV: sampleRate * channels * 2 байт/сэмпл
+  const bytesPerSec = sampleRate * channels * 2;
+  const secPerChunk = Math.floor(CHUNK / bytesPerSec);
+  const chunkSec = Math.max(30, Math.min(secPerChunk, 600)); // 30с–10мин
+
+  const chunks = [];
+  for (let start = 0; start < totalDuration; start += chunkSec) {
+    const end = Math.min(start + chunkSec, totalDuration);
+    const frameStart = Math.floor(start * sampleRate);
+    const frameEnd = Math.floor(end * sampleRate);
+    const frameCount = frameEnd - frameStart;
+
+    const chunkBuf = audioCtx.createBuffer(channels, frameCount, sampleRate);
+    for (let ch = 0; ch < channels; ch++) {
+      const src = audioBuf.getChannelData(ch).subarray(frameStart, frameEnd);
+      chunkBuf.copyToChannel(src, ch);
+    }
+
+    // Конвертируем в WAV blob
+    const wav = audioBufferToWav(chunkBuf);
+    const blob = new Blob([wav], { type: 'audio/wav' });
+    const idx = chunks.length + 1;
+    chunks.push(new File([blob], `chunk${idx}.wav`, { type: 'audio/wav' }));
+  }
+
+  await audioCtx.close();
+  return chunks;
+}
+
+// Fallback: байтовая нарезка (для форматов которые Web Audio не поддерживает)
+function splitFileBytes(f) {
+  const ext = f.name.split('.').pop();
+  const out = [];
+  for (let off = 0, idx = 1; off < f.size; off += CHUNK, idx++) {
+    out.push(new File([f.slice(off, off+CHUNK, f.type)], `chunk${idx}.${ext}`, { type: f.type }));
+  }
+  return out;
+}
+
+// WAV encoder
+function audioBufferToWav(buf) {
+  const numCh = buf.numberOfChannels;
+  const sampleRate = buf.sampleRate;
+  const numFrames = buf.length;
+  const bytesPerSample = 2;
+  const blockAlign = numCh * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numFrames * blockAlign;
+  const bufferSize = 44 + dataSize;
+  const ab = new ArrayBuffer(bufferSize);
+  const view = new DataView(ab);
+
+  function writeStr(off, str) { for (let i=0;i<str.length;i++) view.setUint8(off+i, str.charCodeAt(i)); }
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Interleave channels
+  const channels = [];
+  for (let c = 0; c < numCh; c++) channels.push(buf.getChannelData(c));
+  let offset = 44;
+  for (let i = 0; i < numFrames; i++) {
+    for (let c = 0; c < numCh; c++) {
+      const s = Math.max(-1, Math.min(1, channels[c][i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  return ab;
+}
+
+async function transcribe(f, lang, attempt = 1) {
+  const fd = new FormData();
+  fd.append('file', f, file.name);
+  if (lang) fd.append('language', lang);
+
+  const r = await fetch('/api/transcribe', {
+    method: 'POST',
+    body: fd
+  });
+
+  const data = await r.json().catch(() => ({}));
+
+  if (!r.ok) {
+    const msg = data?.error || r.statusText || '';
+
+    if (r.status === 429 && attempt <= 5) {
+      const waitMatch = msg.match(/try again in (\d+(?:\.\d+)?)s/i);
+      const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 65;
+
+      const stepEl = document.querySelector('#s2 .step-text');
+      for (let t = waitSec; t > 0; t--) {
+        stepEl.textContent = `⏳ Лимит Groq — ждём ${t}с перед повтором (попытка ${attempt}/5)...`;
+        await new Promise(res => setTimeout(res, 1000));
+      }
+      stepEl.textContent = `Транскрипция, повтор...`;
+      return transcribe(f, lang, attempt + 1);
+    }
+
+    throw new Error('Transcribe: ' + msg);
+  }
+  return data.text;
+}
+
+const prompts = {
+  bullets: `Ты — аналитик деловых переговоров. Создай структурированное саммари совещания:
+
+**КЛЮЧЕВЫЕ ТЕМЫ** — что обсуждалось
+**ПРИНЯТЫЕ РЕШЕНИЯ** — конкретные договорённости
+**ОТКРЫТЫЕ ВОПРОСЫ** — что осталось без ответа
+**ОБЩАЯ АТМОСФЕРА** — кратко о тоне разговора
+
+Будь конкретным, не лей воду. Пиши по-русски.`,
+
+  action: `Ты — project manager. Выдели из совещания:
+
+**ACTION ITEMS** — "Задача → Ответственный → Срок"
+**ЗАВИСИМОСТИ** — что от чего зависит
+**РИСКИ И ПРОБЛЕМЫ** — что упоминалось как препятствие
+
+Только конкретные действия. По-русски.`,
+
+  narrative: `Напиши связный пересказ совещания в 3-5 абзацах. Сохрани суть, убери лишнее. По-русски.`,
+
+  full: `Создай полный отчёт о совещании:
+
+**УЧАСТНИКИ** (если упомянуты)
+**ПОВЕСТКА** — темы
+**ДЕТАЛЬНОЕ ОБСУЖДЕНИЕ** — ключевые моменты
+**РЕШЕНИЯ**
+**ЗАДАЧИ** — action items
+**СЛЕДУЮЩИЕ ШАГИ**
+**ВЫВОДЫ**
+
+Пиши по-русски, структурировано.`
+};
+
+async function summarize(text, key, fmt2) {
+  // ~3 символа на токен, лимит 10000 токенов на запрос = ~30000 символов
+  const MAX_CHARS = 28000;
+
+  // Если текст влезает — один запрос
+  if (text.length <= MAX_CHARS) {
+    return await summarizeChunk(text, null, fmt2);
+  }
+
+  // Иначе — делим на части и суммаризируем каждую, потом финальное саммари
+  const parts = [];
+  for (let i = 0; i < text.length; i += MAX_CHARS) {
+    parts.push(text.slice(i, i + MAX_CHARS));
+  }
+
+  document.querySelector('#s3 .step-text').textContent = `Саммари: обрабатываем ${parts.length} частей...`;
+
+  const partSummaries = [];
+  for (let i = 0; i < parts.length; i++) {
+    document.querySelector('#s3 .step-text').textContent = `Саммари части ${i+1}/${parts.length}...`;
+    const s = await summarizeChunk(parts[i], null, 'bullets');
+    partSummaries.push(s);
+    if (i < parts.length - 1) await new Promise(r => setTimeout(r, 3000));
+  }
+
+  // Финальное саммари из частичных саммари
+  document.querySelector('#s3 .step-text').textContent = `Составляем итоговое саммари...`;
+  const combined = partSummaries.map((s, i) => `[Часть ${i+1}]\n${s}`).join('\n\n');
+  return await summarizeChunk(combined, null, fmt2, true);
+}
+
+async function summarizeChunk(text, key, fmt2, isFinal = false) {
+  const format = isFinal ? '__final__' : fmt2;
+
+  const r = await fetch('/api/summarize', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, format, isFinal, originalFormat: fmt2 })
+  });
+
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('Summarize: ' + (data?.error || r.statusText));
+  return data.summary || 'Не удалось получить саммари';
+}
+
+
+function exportPDF() {
+  const summary = document.getElementById('summaryBody').textContent.trim();
+  const transcript = document.getElementById('transcriptBody').textContent.trim();
+  const filename = document.getElementById('fileName').textContent.split('(')[0].trim().replace(/\.[^.]+$/, '') || 'совещание';
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>${filename}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=PT+Serif:ital,wght@0,400;0,700;1,400&family=PT+Sans:wght@400;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'PT Serif', serif; font-size:12pt; color:#1a1a2e; background:#fff; line-height:1.7; }
+  .page { max-width:740px; margin:0 auto; padding:60px 60px 80px; }
+  .cover { text-align:center; padding:80px 0 60px; border-bottom:2px solid #e0e0f0; margin-bottom:48px; }
+  .cover-label { font-family:'PT Sans', sans-serif; font-size:10pt; color:#888; letter-spacing:2px; text-transform:uppercase; margin-bottom:16px; }
+  .cover-title { font-size:22pt; font-weight:700; color:#1a1a2e; margin-bottom:12px; line-height:1.3; }
+  .cover-meta { font-size:10pt; color:#888; font-family:'PT Sans', sans-serif; }
+  .section { margin-bottom:48px; }
+  .section-label {
+    font-family:'PT Sans', sans-serif;
+    font-size:9pt; font-weight:700;
+    color:#6366f1; letter-spacing:2px;
+    text-transform:uppercase;
+    margin-bottom:16px;
+    padding-bottom:8px;
+    border-bottom:1px solid #e0e0f0;
+  }
+  .section-body { font-size:11.5pt; line-height:1.8; white-space:pre-wrap; color:#2a2a3e; }
+  .transcript-body { font-family:'PT Sans', sans-serif; font-size:10.5pt; line-height:1.75; color:#3a3a5e; white-space:pre-wrap; }
+  .footer { text-align:center; font-family:'PT Sans',sans-serif; font-size:9pt; color:#bbb; margin-top:60px; padding-top:20px; border-top:1px solid #f0f0f8; }
+  @media print {
+    body { font-size:11pt; }
+    .page { padding:40px 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="cover">
+    <div class="cover-label">Протокол совещания</div>
+    <div class="cover-title">${filename}</div>
+    <div class="cover-meta">Сгенерировано VoiceIntel · ${new Date().toLocaleDateString('ru-RU', {day:'numeric',month:'long',year:'numeric'})}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">✨ Саммари</div>
+    <div class="section-body">${summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">📝 Полная транскрипция</div>
+    <div class="transcript-body">${transcript.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+  </div>
+
+  <div class="footer">VoiceIntel · Groq Whisper Large v3 Turbo + Llama 3.3 70B</div>
+</div>
+<script>window.onload = function(){ window.print(); }<\/script>
+</body>
+</html>`);
+  win.document.close();
+}
+
+function wc(t) { return t.trim().split(/\s+/).filter(Boolean).length; }
+
+function copyEl(id) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(() => {
+    const btn = event.target.closest('.copy-btn');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓ Готово';
+    setTimeout(() => btn.innerHTML = orig, 2000);
+  });
+}
+</script>
+</body>
+</html>
