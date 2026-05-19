@@ -1,18 +1,11 @@
-export default async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
-  }
+exports.handler = async function(event) {
+  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
 
   const groqKey = process.env.GROQ_API_KEY;
-  if (!groqKey) {
-    return new Response(JSON.stringify({ error: 'API key not configured' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
+  if (!groqKey) return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
 
   try {
-    const { text, format, isFinal, originalFormat } = await req.json();
+    const { text, format, isFinal, originalFormat } = JSON.parse(event.body);
 
     const prompts = {
       bullets: `Ты — аналитик деловых переговоров. Создай структурированное саммари совещания:\n\n**КЛЮЧЕВЫЕ ТЕМЫ** — что обсуждалось\n**ПРИНЯТЫЕ РЕШЕНИЯ** — конкретные договорённости\n**ОТКРЫТЫЕ ВОПРОСЫ** — что осталось без ответа\n**ОБЩАЯ АТМОСФЕРА** — кратко о тоне разговора\n\nБудь конкретным, не лей воду. Пиши по-русски.`,
@@ -28,40 +21,14 @@ export default async (req) => {
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqKey}`
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 2000,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: 'ТРАНСКРИПЦИЯ СОВЕЩАНИЯ:\n\n' + text }
-        ]
-      })
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groqKey}` },
+      body: JSON.stringify({ model: 'llama-3.3-70b-versatile', max_tokens: 2000, messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: 'ТРАНСКРИПЦИЯ СОВЕЩАНИЯ:\n\n' + text }] })
     });
 
     const data = await response.json();
-
-    if (!response.ok) {
-      return new Response(JSON.stringify({ error: data?.error?.message || 'Groq error' }), {
-        status: response.status,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ summary: data.choices?.[0]?.message?.content || '' }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-
+    if (!response.ok) return { statusCode: response.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: data?.error?.message || 'Groq error' }) };
+    return { statusCode: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ summary: data.choices?.[0]?.message?.content || '' }) };
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
+    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
   }
 };
-
-export const config = { path: '/api/summarize' };
