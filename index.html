@@ -427,7 +427,21 @@
   <!-- ===== APP ===== -->
   <div id="tab-app">
 
-
+    <div class="key-section">
+      <div class="key-label">
+        Groq API Key (бесплатно, без карты)
+        <a href="https://console.groq.com/keys" target="_blank">→ Получить ключ</a>
+      </div>
+      <input class="key-input" type="password" id="groqKey" placeholder="gsk_..." />
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px;">
+        <span id="keySavedBadge" style="display:none;align-items:center;gap:5px;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.3);color:#34d399;font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:20px;">
+          💾 Ключ сохранён в браузере
+        </span>
+        <button onclick="forgetKey()" style="background:transparent;border:1px solid rgba(248,113,113,0.3);color:#f87171;font-family:'JetBrains Mono',monospace;font-size:10px;padding:4px 10px;border-radius:20px;cursor:pointer;">
+          🗑 Забыть ключ
+        </button>
+      </div>
+    </div>
 
     <div class="upload-zone" id="uploadZone">
       <input type="file" id="fileInput" accept="audio/*,video/*" />
@@ -517,7 +531,34 @@
 const CHUNK = 20 * 1024 * 1024; // 20 MB — безопасный лимит для Groq
 let file = null;
 
+// Загружаем сохранённый ключ при старте
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('voiceintel_groq_key');
+  if (saved) {
+    document.getElementById('groqKey').value = saved;
+    document.getElementById('keySavedBadge').style.display = 'inline-flex';
+  }
+});
 
+// Сохраняем ключ при вводе
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('groqKey').addEventListener('input', function() {
+    const val = this.value.trim();
+    if (val.startsWith('gsk_') && val.length > 20) {
+      localStorage.setItem('voiceintel_groq_key', val);
+      document.getElementById('keySavedBadge').style.display = 'inline-flex';
+    } else if (!val) {
+      localStorage.removeItem('voiceintel_groq_key');
+      document.getElementById('keySavedBadge').style.display = 'none';
+    }
+  });
+});
+
+function forgetKey() {
+  localStorage.removeItem('voiceintel_groq_key');
+  document.getElementById('groqKey').value = '';
+  document.getElementById('keySavedBadge').style.display = 'none';
+}
 
 // Drag & drop
 const zone = document.getElementById('uploadZone');
@@ -552,12 +593,14 @@ function err(msg) {
 }
 
 async function run() {
+  const key = document.getElementById('groqKey').value.trim();
   const lang = document.getElementById('langSel').value;
   const fmt2 = document.getElementById('fmtSel').value;
 
   document.getElementById('errorBox').style.display = 'none';
   document.getElementById('results').style.display = 'none';
 
+  if (!key) return err('Введи Groq API Key — получи бесплатно на <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>');
   if (!file) return err('Выбери аудио файл');
 
   const btn = document.getElementById('runBtn');
@@ -577,14 +620,14 @@ async function run() {
       if (chunks.length > 1) {
         document.querySelector('#s2 .step-text').textContent = `Транскрипция части ${i+1}/${chunks.length}...`;
       }
-      transcript += (transcript ? '\n' : '') + await transcribe(chunks[i], lang);
+      transcript += (transcript ? '\n' : '') + await transcribe(chunks[i], key, lang);
       // Пауза 4 сек между запросами чтобы не превысить лимит 20 RPM
       if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 4000));
     }
     step(2, 'done');
 
     step(3, 'active');
-    const summary = await summarize(transcript, null, fmt2);
+    const summary = await summarize(transcript, key, fmt2);
     step(3, 'done');
     step(4, 'done');
 
@@ -708,21 +751,24 @@ function audioBufferToWav(buf) {
   return ab;
 }
 
-async function transcribe(f, lang, attempt = 1) {
+async function transcribe(f, key, lang, attempt = 1) {
   const fd = new FormData();
   fd.append('file', f, file.name);
+  fd.append('model', 'whisper-large-v3-turbo');
+  fd.append('response_format', 'text');
   if (lang) fd.append('language', lang);
 
-  const r = await fetch('/api/transcribe', {
+  const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
+    headers: { Authorization: 'Bearer ' + key },
     body: fd
   });
 
-  const data = await r.json().catch(() => ({}));
-
   if (!r.ok) {
-    const msg = data?.error || r.statusText || '';
+    const e = await r.json().catch(() => ({}));
+    const msg = e?.error?.message || r.statusText || '';
 
+    // Rate limit — парсим сколько ждать и делаем retry
     if (r.status === 429 && attempt <= 5) {
       const waitMatch = msg.match(/try again in (\d+(?:\.\d+)?)s/i);
       const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 65;
@@ -733,12 +779,12 @@ async function transcribe(f, lang, attempt = 1) {
         await new Promise(res => setTimeout(res, 1000));
       }
       stepEl.textContent = `Транскрипция, повтор...`;
-      return transcribe(f, lang, attempt + 1);
+      return transcribe(f, key, lang, attempt + 1);
     }
 
-    throw new Error('Transcribe: ' + msg);
+    throw new Error('Groq Whisper: ' + msg);
   }
-  return data.text;
+  return r.text();
 }
 
 const prompts = {
@@ -780,7 +826,7 @@ async function summarize(text, key, fmt2) {
 
   // Если текст влезает — один запрос
   if (text.length <= MAX_CHARS) {
-    return await summarizeChunk(text, null, fmt2);
+    return await summarizeChunk(text, key, fmt2);
   }
 
   // Иначе — делим на части и суммаризируем каждую, потом финальное саммари
@@ -794,7 +840,7 @@ async function summarize(text, key, fmt2) {
   const partSummaries = [];
   for (let i = 0; i < parts.length; i++) {
     document.querySelector('#s3 .step-text').textContent = `Саммари части ${i+1}/${parts.length}...`;
-    const s = await summarizeChunk(parts[i], null, 'bullets');
+    const s = await summarizeChunk(parts[i], key, 'bullets');
     partSummaries.push(s);
     if (i < parts.length - 1) await new Promise(r => setTimeout(r, 3000));
   }
@@ -802,21 +848,36 @@ async function summarize(text, key, fmt2) {
   // Финальное саммари из частичных саммари
   document.querySelector('#s3 .step-text').textContent = `Составляем итоговое саммари...`;
   const combined = partSummaries.map((s, i) => `[Часть ${i+1}]\n${s}`).join('\n\n');
-  return await summarizeChunk(combined, null, fmt2, true);
+  return await summarizeChunk(combined, key, fmt2, true);
 }
 
 async function summarizeChunk(text, key, fmt2, isFinal = false) {
-  const format = isFinal ? '__final__' : fmt2;
+  const systemPrompt = isFinal
+    ? `Ты — аналитик. Тебе даны саммари нескольких частей длинного совещания. Объедини их в единое ${fmt2 === 'bullets' ? 'структурированное саммари с тезисами и решениями' : fmt2 === 'action' ? 'список action items' : fmt2 === 'narrative' ? 'связный пересказ' : 'полный отчёт'}. Пиши по-русски.`
+    : prompts[fmt2];
 
-  const r = await fetch('/api/summarize', {
+  const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, format, isFinal, originalFormat: fmt2 })
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + key
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 2000,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: 'ТРАНСКРИПЦИЯ СОВЕЩАНИЯ:\n\n' + text }
+      ]
+    })
   });
 
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error('Summarize: ' + (data?.error || r.statusText));
-  return data.summary || 'Не удалось получить саммари';
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error('Groq Llama: ' + (e?.error?.message || r.statusText));
+  }
+  const d = await r.json();
+  return d.choices?.[0]?.message?.content || 'Не удалось получить саммари';
 }
 
 
